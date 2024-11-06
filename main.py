@@ -7,20 +7,14 @@ def ekstrakcja_danych_z_artykulu(url_suffix):
     
     html_content = response.text
     
-    #with open("zawartosc.html", "w", encoding="utf-8") as file:
-    #    file.write(html_content)
+    aricles_position = re.search(r'mw-category-generated', html_content).start()
+    articles_content = html_content[aricles_position:]
     
-    pattern = r'mw-category-generated".*?<li><a href="([^"]+)" title="[^"]+">.*?</a></li>\s*<li><a href="([^"]+)" title="[^"]+">.*?</a></li>'
-    matches = re.search(pattern, html_content, re.DOTALL)
-    links = []
-
-    if matches:
-        links.append(matches.group(1))
-        links.append(matches.group(2))
-        
-        
+    pattern = r'<a.+?href="\/wiki([^:]+?)".+?>(.+?)<\/a>'
+    links = re.findall(pattern, articles_content)[:2]
+    
     for link in links:
-        article_url = f"https://pl.wikipedia.org/{link}"
+        article_url = f"https://pl.wikipedia.org/wiki{link[0]}"
         article_response = requests.get(article_url)
         article_content = article_response.text
         
@@ -43,35 +37,37 @@ def ekstrakcja_danych_z_artykulu(url_suffix):
         pattern_imgs = r'<img.+?src="(.+?)"'
         imgs_links = re.findall(pattern_imgs, html_imgs)[:3]
         
-        if imgs_links:
-            print(" | ".join(imgs_links))
-        else:
-            print("\n")       
+        if len(imgs_links) > 3:
+            imgs_links = imgs_links[:3]
+        print(" | ".join(imgs_links))
             
         #external links
         external_links_position = article_content.find('id="Przypisy"')
-        if external_links_position is not None:
-            external_links_position = article_content.find(r'mw-references-wrap')
-            html_external_links = article_content[external_links_position:]
-            pattern_external_links = r'"(http.+?)"'
-            external_links = re.findall(pattern_external_links, html_external_links)[:3]
-            if external_links:
+        if external_links_position != -1:
+            html_external_links = re.search(r'id="Przypisy"(.+)', article_content, re.DOTALL)
+            if html_external_links:
+                html_external_links = re.search(r'class="references"(.+?)<\/ol>', html_external_links.group(), re.DOTALL)
+                if html_external_links:
+                    external_links = re.findall(r'"(http.+?)"', html_external_links.group())
+                    if len(external_links) > 3:
+                        external_links = external_links[:3]    
                 print(" | ".join(external_links))
         else:
             print("\n")
         
         #categories
-        categories_position = article_content.find('mw-normal-catlinks')
-        html_categories = article_content[categories_position:]
+        html_categories = re.search(r'mw-normal-catlinks(.+?)</div>', article_content, re.DOTALL)
     
-        pattern_categories = r'<li.+?>(.+?)</a></li>'
-        categories_links = re.findall(pattern_categories, html_categories)[:3]
-        
-        if categories_links:
+        if html_categories:
+            html_categories = html_categories.group(1)  # Wydobywamy tekst między 'mw-normal-catlinks' i '</div>'
+            categories_links = re.findall(re.compile(r'<li.+?>(.+?)</a></li>'), html_categories)
+            if len(categories_links) > 3:
+                categories_links = categories_links[:3]
             print(" | ".join(categories_links))
         else:
-            print("\n")   
-            
+            print("\n")
+
+        
 article_name = input()
 article_name = article_name.replace(" ", "_")
 ekstrakcja_danych_z_artykulu(article_name)
